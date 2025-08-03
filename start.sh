@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Ensure script is executable
+chmod +x "$0" 2>/dev/null || true
+
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

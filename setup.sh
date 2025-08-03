@@ -56,6 +56,12 @@ fi
 print_status "Installing system dependencies (Nginx, Certbot, MongoDB, Email servers)..."
 sudo apt install -y nginx certbot python3-certbot-nginx postfix dovecot-core dovecot-imapd dovecot-pop3d opendkim opendkim-tools
 
+# Add PHP repository
+print_status "Adding PHP repository..."
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:ondrej/php -y
+sudo apt update
+
 # Install PHP and related packages for WordPress support
 print_status "Installing PHP and MySQL for WordPress support..."
 sudo apt install -y php8.1 php8.1-fpm php8.1-mysql php8.1-xml php8.1-curl php8.1-mbstring php8.1-zip php8.1-gd php8.1-intl php8.1-bcmath php8.1-soap php8.1-imagick php8.1-cli php8.1-common php8.1-opcache
