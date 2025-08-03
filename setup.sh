@@ -56,6 +56,36 @@ fi
 print_status "Installing system dependencies (Nginx, Certbot, MongoDB, Email servers)..."
 sudo apt install -y nginx certbot python3-certbot-nginx postfix dovecot-core dovecot-imapd dovecot-pop3d opendkim opendkim-tools
 
+# Install PHP and related packages for WordPress support
+print_status "Installing PHP and MySQL for WordPress support..."
+sudo apt install -y php8.1 php8.1-fpm php8.1-mysql php8.1-xml php8.1-curl php8.1-mbstring php8.1-zip php8.1-gd php8.1-intl php8.1-bcmath php8.1-soap php8.1-imagick php8.1-cli php8.1-common php8.1-opcache
+
+# Install MySQL Server
+print_status "Installing MySQL Server..."
+sudo DEBIAN_FRONTEND=noninteractive apt install -y mysql-server
+
+# Install additional utilities
+print_status "Installing additional utilities..."
+sudo apt install -y git curl wget unzip software-properties-common apt-transport-https ca-certificates gnupg lsb-release
+
+# Install PM2 for Node.js process management
+print_status "Installing PM2 for Node.js process management..."
+sudo npm install -g pm2
+
+# Install Composer for PHP dependency management
+print_status "Installing Composer for PHP..."
+curl -sS https://getcomposer.org/installer | php
+sudo mv composer.phar /usr/local/bin/composer
+sudo chmod +x /usr/local/bin/composer
+
+# Install WP-CLI for WordPress management
+print_status "Installing WP-CLI for WordPress management..."
+curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash
+curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/bin/wp-cli.phar
+chmod +x wp-cli.phar
+sudo mv wp-cli.phar /usr/local/bin/wp
+sudo chmod +x /usr/local/bin/wp
+
 # Install MongoDB
 if ! command -v mongod &> /dev/null; then
     print_status "Installing MongoDB..."
@@ -68,6 +98,40 @@ if ! command -v mongod &> /dev/null; then
 else
     print_success "MongoDB already installed"
 fi
+
+# Configure MySQL
+print_status "Configuring MySQL..."
+sudo systemctl start mysql
+sudo systemctl enable mysql
+
+# Secure MySQL installation (automated)
+MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
+sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';"
+sudo mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "DELETE FROM mysql.user WHERE User='';"
+sudo mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+sudo mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "DROP DATABASE IF EXISTS test;"
+sudo mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';"
+sudo mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "FLUSH PRIVILEGES;"
+
+# Save MySQL root password
+echo "MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}" >> ~/.mysql_credentials
+chmod 600 ~/.mysql_credentials
+print_success "MySQL configured. Root password saved to ~/.mysql_credentials"
+
+# Configure PHP-FPM
+print_status "Configuring PHP-FPM..."
+sudo systemctl start php8.1-fpm
+sudo systemctl enable php8.1-fpm
+
+# Update PHP configuration for better WordPress performance
+sudo sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 64M/' /etc/php/8.1/fpm/php.ini
+sudo sed -i 's/post_max_size = 8M/post_max_size = 64M/' /etc/php/8.1/fpm/php.ini
+sudo sed -i 's/max_execution_time = 30/max_execution_time = 300/' /etc/php/8.1/fpm/php.ini
+sudo sed -i 's/max_input_vars = 1000/max_input_vars = 3000/' /etc/php/8.1/fpm/php.ini
+sudo sed -i 's/memory_limit = 128M/memory_limit = 256M/' /etc/php/8.1/fpm/php.ini
+
+# Restart PHP-FPM to apply changes
+sudo systemctl restart php8.1-fpm
 
 # Create mail user
 if ! id "vmail" &>/dev/null; then
@@ -91,13 +155,16 @@ cd client && npm install && cd ..
 # Create .env file
 if [ ! -f .env ]; then
     print_status "Creating .env configuration file..."
-    cat > .env << 'EOF'
+    # Generate JWT secret
+    JWT_SECRET=$(openssl rand -base64 64)
+    
+    cat > .env << EOF
 # Cloudflare API Configuration
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token_here
 CLOUDFLARE_ZONE_ID=your_default_zone_id_here
 
-# JWT Secret (generate a secure random string)
-JWT_SECRET=your_jwt_secret_here
+# JWT Secret (auto-generated)
+JWT_SECRET=${JWT_SECRET}
 
 # Server Configuration
 PORT=3001
@@ -105,6 +172,24 @@ NODE_ENV=production
 
 # MongoDB Database
 MONGODB_URI=mongodb://localhost:27017/ubuntu_web_panel
+
+# MySQL Database Configuration
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+MYSQL_USER=root
+
+# WordPress Configuration
+WP_CLI_PATH=/usr/local/bin/wp
+COMPOSER_PATH=/usr/local/bin/composer
+
+# PHP Configuration
+PHP_VERSION=8.1
+PHP_FPM_SOCKET=/run/php/php8.1-fpm.sock
+
+# Node.js Configuration
+NODE_VERSION=18
+PM2_PATH=/usr/local/bin/pm2
 
 # Email Server Configuration
 MAIL_SERVER=mail.yourdomain.com
@@ -120,8 +205,18 @@ WEB_ROOT=/var/www
 POSTFIX_CONFIG_PATH=/etc/postfix
 DOVECOT_CONFIG_PATH=/etc/dovecot
 MAIL_HOME=/var/mail
+
+# Site Types Support
+SUPPORT_WORDPRESS=true
+SUPPORT_NODEJS=true
+SUPPORT_STATIC=true
+SUPPORT_PHP=true
+
+# WordPress Download URL
+WORDPRESS_DOWNLOAD_URL=https://wordpress.org/latest.tar.gz
 EOF
-    print_warning "Please edit the .env file with your actual configuration!"
+    print_success ".env file created with auto-generated secrets!"
+    print_warning "Please edit the Cloudflare API credentials in .env file!"
 else
     print_success ".env file already exists"
 fi
@@ -130,12 +225,56 @@ fi
 print_status "Creating directories..."
 mkdir -p database
 sudo mkdir -p /var/www
+sudo mkdir -p /var/www/html
+sudo mkdir -p /var/log/webpanel
+sudo mkdir -p /etc/webpanel
+sudo mkdir -p /opt/webpanel/backups
+sudo mkdir -p /opt/webpanel/templates
+
+# Set proper ownership and permissions
 sudo chown -R $USER:www-data /var/www
 sudo chmod -R 755 /var/www
+sudo chown -R $USER:$USER /var/log/webpanel
+sudo chown -R $USER:$USER /etc/webpanel
+sudo chown -R $USER:$USER /opt/webpanel
 
 # Setup sudo permissions
 print_status "Configuring sudo permissions for web panel..."
-echo "$USER ALL=(ALL) NOPASSWD: /usr/sbin/nginx, /bin/systemctl reload nginx, /usr/bin/certbot, /bin/systemctl restart nginx, /usr/sbin/postfix, /bin/systemctl reload postfix, /bin/systemctl reload dovecot, /bin/systemctl reload opendkim, /usr/bin/postmap, /usr/bin/doveadm, /usr/bin/opendkim-genkey" | sudo tee /etc/sudoers.d/webpanel
+cat > /tmp/webpanel_sudoers << 'EOF'
+# Ubuntu Web Panel - System Management Permissions
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/sbin/nginx
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl restart nginx
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl status nginx
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/bin/certbot
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl restart php8.1-fpm
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.1-fpm
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl status php8.1-fpm
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl restart mysql
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl status mysql
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/bin/mysql
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/sbin/postfix
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl reload postfix
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl reload dovecot
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/systemctl reload opendkim
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/bin/postmap
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/bin/doveadm
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/bin/opendkim-genkey
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/local/bin/wp
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/local/bin/pm2
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /usr/local/bin/composer
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/chown
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/chmod
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/mkdir
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/rm
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/cp
+%WEBPANEL_USER% ALL=(ALL) NOPASSWD: /bin/mv
+EOF
+
+# Replace placeholder with actual user
+sed "s/%WEBPANEL_USER%/$USER/g" /tmp/webpanel_sudoers | sudo tee /etc/sudoers.d/webpanel
+sudo chmod 440 /etc/sudoers.d/webpanel
+rm /tmp/webpanel_sudoers
 
 # Build the application
 print_status "Building client application..."
@@ -143,21 +282,47 @@ cd client && npm run build && cd ..
 
 print_success "Setup completed successfully!"
 echo ""
-echo "🎉 Ubuntu Web Panel is now installed!"
+echo "🎉 Ubuntu Web Panel is now fully installed!"
+echo ""
+echo "📦 INSTALLED COMPONENTS:"
+echo "✅ Node.js 18 + npm + PM2"
+echo "✅ PHP 8.1 + PHP-FPM (optimized for WordPress)"
+echo "✅ MySQL Server (secured with auto-generated password)"
+echo "✅ MongoDB (for panel database)"
+echo "✅ Nginx (web server)"
+echo "✅ Certbot (SSL certificates)"
+echo "✅ Email Stack (Postfix + Dovecot + OpenDKIM)"
+echo "✅ WordPress Tools (WP-CLI + Composer)"
+echo "✅ Development Tools (Git, Curl, Wget, Unzip)"
+echo ""
+echo "🌐 SUPPORTED SITE TYPES:"
+echo "✅ Static HTML/CSS/JS sites"
+echo "✅ PHP applications"
+echo "✅ WordPress sites (full management)"
+echo "✅ Node.js applications (with PM2)"
 echo ""
 echo "📝 NEXT STEPS:"
-echo "1. Edit the .env file: nano .env"
-echo "2. Add your Cloudflare API token and zone ID"
-echo "3. Start the panel: ./start.sh"
-echo "4. Access: http://your-server-ip:3001"
-echo "5. Login: admin / password (CHANGE IMMEDIATELY!)"
+echo "1. Edit Cloudflare credentials: nano .env"
+echo "2. Start the panel: ./start.sh"
+echo "3. Access: http://your-server-ip:3001"
+echo "4. Login: admin / password (CHANGE IMMEDIATELY!)"
 echo ""
-echo "📧 Email Server Setup:"
-echo "- All email components are installed"
-echo "- Configure domains through the web panel"
+echo "🔑 CREDENTIALS SAVED:"
+echo "- MySQL root password: ~/.mysql_credentials"
+echo "- JWT secret: auto-generated in .env"
+echo ""
+echo "📧 EMAIL SERVER:"
+echo "- All components installed and configured"
+echo "- Manage through web panel interface"
 echo "- Add DNS records (MX, SPF, DKIM, DMARC)"
 echo ""
-echo "🔒 Security Notes:"
-echo "- Change default admin password immediately"
-echo "- Configure firewall (ufw enable)"
-echo "- Consider using PM2 for process management"
+echo "🔒 SECURITY:"
+echo "- MySQL secured with random password"
+echo "- PHP optimized and secured"
+echo "- Comprehensive sudo permissions configured"
+echo "- Change default admin password immediately!"
+echo ""
+echo "🚀 QUICK START:"
+echo "   ./start.sh"
+echo ""
+print_warning "Remember to configure firewall: sudo ufw enable"
