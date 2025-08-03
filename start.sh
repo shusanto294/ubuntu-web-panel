@@ -29,11 +29,62 @@ print_error() {
 echo -e "${BLUE}🚀 Ubuntu Web Panel - Starting...${NC}"
 echo ""
 
-# Check if .env exists
+# Check if .env exists, if not create it
 if [ ! -f .env ]; then
-    echo -e "${RED}❌ .env file not found!${NC}"
-    echo -e "${YELLOW}Run './setup.sh' first to set up the application.${NC}"
-    exit 1
+    print_warning ".env file not found! Creating basic .env file..."
+    
+    # Generate secure secrets
+    JWT_SECRET=$(openssl rand -base64 64)
+    ADMIN_SECRET=$(openssl rand -base64 32)
+    ENCRYPTION_KEY=$(openssl rand -base64 32)
+    
+    # Get server details
+    SERVER_IP=$(curl -s ifconfig.me || echo "127.0.0.1")
+    HOSTNAME=$(hostname)
+    DOMAIN="${HOSTNAME}.local"
+    
+    # Get user details
+    CURRENT_USER=$(whoami)
+    HOME_DIR=$(eval echo ~$CURRENT_USER)
+    
+    # Create basic .env file
+    cat > .env << EOF
+# Ubuntu Web Panel Configuration
+JWT_SECRET=${JWT_SECRET}
+ADMIN_SECRET=${ADMIN_SECRET}
+ENCRYPTION_KEY=${ENCRYPTION_KEY}
+SESSION_SECRET=$(openssl rand -base64 48)
+
+# Server Configuration
+PORT=3001
+NODE_ENV=production
+SERVER_IP=${SERVER_IP}
+HOSTNAME=${HOSTNAME}
+DOMAIN=${DOMAIN}
+BASE_URL=http://${SERVER_IP}:3001
+
+# Database Configuration
+MONGODB_URI=mongodb://localhost:27017/ubuntu_web_panel
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_ROOT_PASSWORD=password
+MYSQL_USER=root
+MYSQL_DATABASE=webpanel_apps
+
+# Cloudflare Configuration (configure later)
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_ZONE_ID=
+CLOUDFLARE_EMAIL=
+
+# Default Admin User
+DEFAULT_ADMIN_USERNAME=admin
+DEFAULT_ADMIN_PASSWORD=admin123!@#
+DEFAULT_ADMIN_EMAIL=admin@${DOMAIN}
+EOF
+    
+    chmod 600 .env
+    print_success "Created basic .env file"
+    print_warning "Please run ./setup.sh for full configuration"
 fi
 
 # 1. Fix WP-CLI installation (only if needed)
@@ -60,70 +111,62 @@ else
     print_success "WP-CLI installed: $(wp --version --allow-root 2>/dev/null || echo 'Installed successfully')"
 fi
 
-# 2. Fix Lucide React icon imports (only if needed)
-print_status "Checking for Lucide React icon import issues..."
-ICON_ISSUES=$(grep -r "Icon.*from 'lucide-react'" client/src/ 2>/dev/null | wc -l)
-if [ "$ICON_ISSUES" -gt 0 ]; then
-    print_status "Found $ICON_ISSUES icon import issues, fixing..."
-    find client/src -name "*.jsx" -type f -exec sed -i '
-    s/GlobeAltIcon/Globe/g
-    s/CloudIcon/Cloud/g
-    s/ServerIcon/Server/g
-    s/CheckCircleIcon/CheckCircle/g
-    s/MailIcon/Mail/g
-    s/PlusIcon/Plus/g
-    s/TrashIcon/Trash/g
-    s/ShieldCheckIcon/ShieldCheck/g
-    s/ExclamationTriangleIcon/AlertTriangle/g
-    s/CogIcon/Settings/g
-    s/UserIcon/User/g
-    s/EyeIcon/Eye/g
-    s/EyeSlashIcon/EyeOff/g
-    s/DocumentIcon/FileText/g
-    s/ArrowPathIcon/RotateCcw/g
-    s/XMarkIcon/X/g
-    s/ChevronRightIcon/ChevronRight/g
-    s/ChevronDownIcon/ChevronDown/g
-    s/HomeIcon/Home/g
-    s/BarsIcon/Menu/g
-    s/Bars3Icon/Menu/g
-    s/XCircleIcon/XCircle/g
-    s/CheckIcon/Check/g
-    s/InformationCircleIcon/Info/g
-    s/ExclamationCircleIcon/AlertCircle/g
-    s/PencilIcon/Edit/g
-    s/ArrowRightIcon/ArrowRight/g
-    s/ArrowLeftIcon/ArrowLeft/g
-    s/RefreshIcon/RefreshCw/g
-    ' {} \;
+# 2. Fix Lucide React icon imports (including LogoutIcon)
+print_status "Fixing Lucide React icon imports..."
+find client/src -name "*.jsx" -type f -exec sed -i '
+s/GlobeAltIcon/Globe/g
+s/CloudIcon/Cloud/g
+s/ServerIcon/Server/g
+s/CheckCircleIcon/CheckCircle/g
+s/MailIcon/Mail/g
+s/PlusIcon/Plus/g
+s/TrashIcon/Trash/g
+s/ShieldCheckIcon/ShieldCheck/g
+s/ExclamationTriangleIcon/AlertTriangle/g
+s/CogIcon/Settings/g
+s/UserIcon/User/g
+s/EyeIcon/Eye/g
+s/EyeSlashIcon/EyeOff/g
+s/DocumentIcon/FileText/g
+s/ArrowPathIcon/RotateCcw/g
+s/XMarkIcon/X/g
+s/ChevronRightIcon/ChevronRight/g
+s/ChevronDownIcon/ChevronDown/g
+s/HomeIcon/Home/g
+s/BarsIcon/Menu/g
+s/Bars3Icon/Menu/g
+s/XCircleIcon/XCircle/g
+s/CheckIcon/Check/g
+s/InformationCircleIcon/Info/g
+s/ExclamationCircleIcon/AlertCircle/g
+s/PencilIcon/Edit/g
+s/ArrowRightIcon/ArrowRight/g
+s/ArrowLeftIcon/ArrowLeft/g
+s/RefreshIcon/RefreshCw/g
+s/LogoutIcon/LogOut/g
+' {} \;
 
-    # Fix common import patterns
-    find client/src -name "*.jsx" -type f -exec sed -i '
-    s/{ PlusIcon, TrashIcon, ShieldCheckIcon, GlobeAltIcon }/{ Plus, Trash, ShieldCheck, Globe }/g
-    s/{ GlobeAltIcon, CloudIcon, ServerIcon, CheckCircleIcon, MailIcon }/{ Globe, Cloud, Server, CheckCircle, Mail }/g
-    s/{ UserIcon, CogIcon, HomeIcon }/{ User, Settings, Home }/g
-    s/{ BarsIcon, XMarkIcon }/{ Menu, X }/g
-    s/{ EyeIcon, EyeSlashIcon }/{ Eye, EyeOff }/g
-    s/{ DocumentIcon, ArrowPathIcon }/{ FileText, RotateCcw }/g
-    s/{ ChevronRightIcon, ChevronDownIcon }/{ ChevronRight, ChevronDown }/g
-    s/{ ExclamationTriangleIcon, CheckCircleIcon }/{ AlertTriangle, CheckCircle }/g
-    s/{ CheckIcon, XIcon }/{ Check, X }/g
-    ' {} \;
+# Fix common import patterns
+find client/src -name "*.jsx" -type f -exec sed -i '
+s/{ PlusIcon, TrashIcon, ShieldCheckIcon, GlobeAltIcon }/{ Plus, Trash, ShieldCheck, Globe }/g
+s/{ GlobeAltIcon, CloudIcon, ServerIcon, CheckCircleIcon, MailIcon }/{ Globe, Cloud, Server, CheckCircle, Mail }/g
+s/{ UserIcon, CogIcon, HomeIcon }/{ User, Settings, Home }/g
+s/{ BarsIcon, XMarkIcon }/{ Menu, X }/g
+s/{ EyeIcon, EyeSlashIcon }/{ Eye, EyeOff }/g
+s/{ DocumentIcon, ArrowPathIcon }/{ FileText, RotateCcw }/g
+s/{ ChevronRightIcon, ChevronDownIcon }/{ ChevronRight, ChevronDown }/g
+s/{ ExclamationTriangleIcon, CheckCircleIcon }/{ AlertTriangle, CheckCircle }/g
+s/{ CheckIcon, XIcon }/{ Check, X }/g
+s/{ HomeIcon, GlobeAltIcon, CloudIcon, MailIcon, CogIcon, LogoutIcon }/{ Home, Globe, Cloud, Mail, Settings, LogOut }/g
+' {} \;
 
-    print_success "Fixed Lucide React icon imports"
-else
-    print_success "Lucide React icon imports are already correct"
-fi
+print_success "Fixed Lucide React icon imports"
 
-# 3. Check and update package.json files if needed
-print_status "Checking package.json files for compatibility..."
+# 3. Update package.json files with compatible versions
+print_status "Updating package.json files for compatibility..."
 
-# Check if client package.json needs updating
-if [ -f client/package.json ]; then
-    CLIENT_REACT_VERSION=$(grep -o '"react": "[^"]*"' client/package.json | cut -d'"' -f4 | cut -d'.' -f1)
-    if [ "$CLIENT_REACT_VERSION" != "18" ]; then
-        print_status "Updating client package.json for Node.js 18 compatibility..."
-        cat > client/package.json << 'EOF'
+# Update client package.json
+cat > client/package.json << 'EOF'
 {
   "name": "ubuntu-web-panel-client",
   "private": true,
@@ -160,16 +203,9 @@ if [ -f client/package.json ]; then
   }
 }
 EOF
-        print_success "Updated client package.json"
-    fi
-fi
 
-# Check if main package.json needs updating
-if [ -f package.json ]; then
-    MAIN_EXPRESS_VERSION=$(grep -o '"express": "[^"]*"' package.json | cut -d'"' -f4 | cut -d'.' -f1)
-    if [ "$MAIN_EXPRESS_VERSION" != "4" ]; then
-        print_status "Updating main package.json..."
-        cat > package.json << 'EOF'
+# Update main package.json with compatible versions
+cat > package.json << 'EOF'
 {
   "name": "ubuntu-web-panel",
   "version": "1.0.0",
@@ -195,7 +231,7 @@ if [ -f package.json ]; then
     "multer": "^1.4.5-lts.1",
     "helmet": "^8.0.0",
     "nodemailer": "^6.9.18",
-    "mailparser": "^3.8.0",
+    "mailparser": "^3.6.5",
     "imap": "^0.8.19",
     "validator": "^13.12.0"
   },
@@ -208,68 +244,23 @@ if [ -f package.json ]; then
   "license": "MIT"
 }
 EOF
-        print_success "Updated main package.json"
-    fi
-fi
 
-# 4. Clean and reinstall dependencies (only if needed)
-print_status "Checking if dependency reinstall is needed..."
-REINSTALL_NEEDED=false
+print_success "Updated package.json files"
 
-# Check if node_modules exists and package.json is newer
-if [ ! -d "node_modules" ] || [ package.json -nt node_modules ]; then
-    print_status "Server dependencies need updating"
-    REINSTALL_NEEDED=true
-fi
+# 4. Clean and reinstall dependencies
+print_status "Cleaning and reinstalling dependencies..."
+rm -rf node_modules package-lock.json
+rm -rf client/node_modules client/package-lock.json
 
-if [ ! -d "client/node_modules" ] || [ client/package.json -nt client/node_modules ]; then
-    print_status "Client dependencies need updating"
-    REINSTALL_NEEDED=true
-fi
+print_status "Installing server dependencies..."
+npm install
 
-if [ "$REINSTALL_NEEDED" = true ]; then
-    print_status "Cleaning old dependencies..."
-    rm -rf node_modules package-lock.json
-    rm -rf client/node_modules client/package-lock.json
+print_status "Installing client dependencies..."
+cd client && npm install --legacy-peer-deps && cd ..
 
-    print_status "Installing server dependencies..."
-    npm install
-
-    print_status "Installing client dependencies..."
-    cd client && npm install --legacy-peer-deps && cd ..
-else
-    print_success "Dependencies are already up to date"
-fi
-
-# 5. Build the client (only if needed)
-print_status "Checking if client build is needed..."
-cd client
-BUILD_NEEDED=false
-
-# Check if dist folder exists
-if [ ! -d "dist" ]; then
-    print_status "dist folder doesn't exist, build needed"
-    BUILD_NEEDED=true
-# Check if any source files are newer than the dist folder
-elif [ $(find src -name "*.jsx" -o -name "*.js" -o -name "*.css" -newer dist 2>/dev/null | wc -l) -gt 0 ]; then
-    print_status "Source files updated, build needed"
-    BUILD_NEEDED=true
-# Check if package.json is newer than dist folder
-elif [ package.json -nt dist ]; then
-    print_status "package.json updated, build needed"
-    BUILD_NEEDED=true
-else
-    print_success "Client build is up to date"
-fi
-
-if [ "$BUILD_NEEDED" = true ]; then
-    print_status "Building client application..."
-    npm run build
-else
-    print_success "Skipping build - client is already built and up to date"
-fi
-
-cd ..
+# 5. Build the client
+print_status "Building client application..."
+cd client && npm run build && cd ..
 
 # 6. Check if MongoDB is running
 print_status "Checking MongoDB status..."
