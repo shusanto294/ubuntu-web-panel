@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
@@ -37,7 +37,7 @@ const saveSettings = async (settings) => {
 };
 
 // Get Cloudflare settings
-router.get('/cloudflare', auth, async (req, res) => {
+router.get('/cloudflare', authenticateToken, async (req, res) => {
   try {
     const settings = await loadSettings();
     
@@ -56,7 +56,7 @@ router.get('/cloudflare', auth, async (req, res) => {
 });
 
 // Save Cloudflare settings
-router.post('/cloudflare', auth, async (req, res) => {
+router.post('/cloudflare', authenticateToken, async (req, res) => {
   try {
     const { apiToken, zoneId, email } = req.body;
     
@@ -84,7 +84,7 @@ router.post('/cloudflare', auth, async (req, res) => {
 });
 
 // Test Cloudflare connection
-router.post('/cloudflare/test', auth, async (req, res) => {
+router.post('/cloudflare/test', authenticateToken, async (req, res) => {
   try {
     const { apiToken, email } = req.body;
     
@@ -154,7 +154,7 @@ router.post('/cloudflare/test', auth, async (req, res) => {
 });
 
 // Get system information
-router.get('/system', auth, async (req, res) => {
+router.get('/system', authenticateToken, async (req, res) => {
   try {
     const os = require('os');
     const { version } = require('../../package.json');
@@ -182,7 +182,7 @@ router.get('/system', auth, async (req, res) => {
 });
 
 // Export settings (for backup)
-router.get('/export', auth, async (req, res) => {
+router.get('/export', authenticateToken, async (req, res) => {
   try {
     const settings = await loadSettings();
     
