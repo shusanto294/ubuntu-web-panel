@@ -95,12 +95,42 @@ sudo chmod +x /usr/local/bin/wp
 # Install MongoDB
 if ! command -v mongod &> /dev/null; then
     print_status "Installing MongoDB..."
-    wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
-    sudo apt update
-    sudo apt install -y mongodb-org
-    sudo systemctl start mongod
-    sudo systemctl enable mongod
+    
+    # Clean up any existing MongoDB repositories
+    sudo rm -f /etc/apt/sources.list.d/mongodb-org-*.list
+    
+    # Detect Ubuntu version and use appropriate MongoDB version
+    UBUNTU_VERSION=$(lsb_release -rs)
+    UBUNTU_CODENAME=$(lsb_release -cs)
+    
+    if [[ "$UBUNTU_VERSION" == "24.04" ]] || [[ "$UBUNTU_CODENAME" == "noble" ]]; then
+        # For Ubuntu 24.04, use MongoDB 7.0 with jammy repository
+        print_status "Ubuntu 24.04 detected, installing MongoDB 7.0..."
+        curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+        echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+        sudo apt update
+        sudo apt install -y mongodb-org
+    elif [[ "$UBUNTU_VERSION" == "22.04" ]] || [[ "$UBUNTU_CODENAME" == "jammy" ]]; then
+        # For Ubuntu 22.04, use MongoDB 6.0
+        print_status "Ubuntu 22.04 detected, installing MongoDB 6.0..."
+        curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
+        echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+        sudo apt update
+        sudo apt install -y mongodb-org
+    else
+        # For older Ubuntu versions or fallback, install from default repository
+        print_status "Installing MongoDB from default repository..."
+        sudo apt install -y mongodb
+    fi
+    
+    # Start and enable MongoDB
+    if systemctl list-unit-files | grep -q "mongod.service"; then
+        sudo systemctl start mongod
+        sudo systemctl enable mongod
+    elif systemctl list-unit-files | grep -q "mongodb.service"; then
+        sudo systemctl start mongodb
+        sudo systemctl enable mongodb
+    fi
 else
     print_success "MongoDB already installed"
 fi
