@@ -59,12 +59,8 @@ router.delete('/zones/:zoneId/dns/:recordId', async (req, res) => {
 
 router.get('/test', async (req, res) => {
   try {
-    const zones = await cloudflareService.getZones();
-    res.json({ 
-      success: true, 
-      message: 'Cloudflare API connection successful',
-      zones: zones.result?.length || 0
-    });
+    const result = await cloudflareService.testConnection();
+    res.json(result);
   } catch (error) {
     res.status(500).json({ 
       success: false, 

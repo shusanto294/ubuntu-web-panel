@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { CheckIcon, XIcon } from 'lucide-react';
+import { Check, X, Cloud, Save, TestTube, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 const Settings = () => {
+  const [cloudflareSettings, setCloudflareSettings] = useState({
+    apiToken: '',
+    zoneId: '',
+    email: ''
+  });
   const [cloudflareStatus, setCloudflareStatus] = useState(null);
+  const [cloudflareZones, setCloudflareZones] = useState([]);
+  const [showApiToken, setShowApiToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -11,10 +20,26 @@ const Settings = () => {
   });
   const [changing, setChanging] = useState(false);
   const [message, setMessage] = useState('');
+  const [cloudflareMessage, setCloudflareMessage] = useState('');
 
   useEffect(() => {
+    loadCloudflareSettings();
     checkCloudflareConnection();
   }, []);
+
+  const loadCloudflareSettings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/settings/cloudflare', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data) {
+        setCloudflareSettings(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load Cloudflare settings:', error);
+    }
+  };
 
   const checkCloudflareConnection = async () => {
     try {
@@ -25,6 +50,64 @@ const Settings = () => {
         success: false, 
         error: error.response?.data?.error || 'Connection failed' 
       });
+    }
+  };
+
+  const testCloudflareConnection = async () => {
+    if (!cloudflareSettings.apiToken) {
+      setCloudflareMessage('Please enter your API token first');
+      return;
+    }
+
+    setTesting(true);
+    setCloudflareMessage('');
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/settings/cloudflare/test', {
+        apiToken: cloudflareSettings.apiToken,
+        email: cloudflareSettings.email
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setCloudflareStatus(response.data);
+        setCloudflareZones(response.data.zones || []);
+        setCloudflareMessage('Connection successful! Found ' + (response.data.zones?.length || 0) + ' zones');
+      } else {
+        setCloudflareStatus({ success: false, error: response.data.error });
+        setCloudflareMessage('Connection failed: ' + response.data.error);
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Connection test failed';
+      setCloudflareStatus({ success: false, error: errorMessage });
+      setCloudflareMessage('Error: ' + errorMessage);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const saveCloudflareSettings = async () => {
+    setSaving(true);
+    setCloudflareMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/settings/cloudflare', cloudflareSettings, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setCloudflareMessage('Settings saved successfully!');
+      
+      // Test connection after saving
+      setTimeout(() => {
+        checkCloudflareConnection();
+      }, 1000);
+    } catch (error) {
+      setCloudflareMessage('Failed to save settings: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -71,56 +154,158 @@ const Settings = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Cloudflare Configuration */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">API Configuration</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <Cloud className="w-6 h-6 text-orange-500 mr-2" />
+              <h3 className="text-lg font-medium text-gray-900">Cloudflare Configuration</h3>
+            </div>
+            <div className="flex items-center">
+              {cloudflareStatus?.success ? (
+                <>
+                  <Check className="w-5 h-5 text-green-500 mr-2" />
+                  <span className="text-sm text-green-600">Connected</span>
+                </>
+              ) : (
+                <>
+                  <X className="w-5 h-5 text-red-500 mr-2" />
+                  <span className="text-sm text-red-600">Disconnected</span>
+                </>
+              )}
+            </div>
+          </div>
           
           <div className="space-y-4">
+            {/* API Token */}
             <div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Cloudflare API</span>
-                <div className="flex items-center">
-                  {cloudflareStatus?.success ? (
-                    <>
-                      <CheckIcon className="w-5 h-5 text-green-500 mr-2" />
-                      <span className="text-sm text-green-600">Connected</span>
-                    </>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                API Token *
+              </label>
+              <div className="relative">
+                <input
+                  type={showApiToken ? "text" : "password"}
+                  placeholder="Enter your Cloudflare API token"
+                  className="block w-full pr-10 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
+                  value={cloudflareSettings.apiToken}
+                  onChange={(e) => setCloudflareSettings({ 
+                    ...cloudflareSettings, 
+                    apiToken: e.target.value 
+                  })}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowApiToken(!showApiToken)}
+                >
+                  {showApiToken ? (
+                    <EyeOff className="h-4 w-4 text-gray-400" />
                   ) : (
-                    <>
-                      <XIcon className="w-5 h-5 text-red-500 mr-2" />
-                      <span className="text-sm text-red-600">Disconnected</span>
-                    </>
+                    <Eye className="h-4 w-4 text-gray-400" />
                   )}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Get your token from: <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-500">Cloudflare Dashboard</a>
+              </p>
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email (Optional)
+              </label>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
+                value={cloudflareSettings.email}
+                onChange={(e) => setCloudflareSettings({ 
+                  ...cloudflareSettings, 
+                  email: e.target.value 
+                })}
+              />
+            </div>
+
+            {/* Zone Selection */}
+            {cloudflareZones.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Zone
+                </label>
+                <select
+                  className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm px-3 py-2 border"
+                  value={cloudflareSettings.zoneId}
+                  onChange={(e) => setCloudflareSettings({ 
+                    ...cloudflareSettings, 
+                    zoneId: e.target.value 
+                  })}
+                >
+                  <option value="">Select a zone...</option>
+                  {cloudflareZones.map((zone) => (
+                    <option key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Status Messages */}
+            {cloudflareMessage && (
+              <div className={`text-sm p-3 rounded-md ${
+                cloudflareMessage.includes('successful') || cloudflareMessage.includes('Found') 
+                  ? 'bg-green-50 text-green-700' 
+                  : 'bg-red-50 text-red-700'
+              }`}>
+                {cloudflareMessage}
+              </div>
+            )}
+
+            {cloudflareStatus?.success && cloudflareStatus.zones && (
+              <div className="bg-blue-50 p-3 rounded-md">
+                <p className="text-sm text-blue-700">
+                  ✅ Connected to Cloudflare with {cloudflareStatus.zones} zones available
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 pt-4">
+              <button
+                onClick={testCloudflareConnection}
+                disabled={testing || !cloudflareSettings.apiToken}
+                className="flex-1 flex items-center justify-center px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <TestTube className="w-4 h-4 mr-2" />
+                {testing ? 'Testing...' : 'Test Connection'}
+              </button>
+              
+              <button
+                onClick={saveCloudflareSettings}
+                disabled={saving || !cloudflareSettings.apiToken}
+                className="flex-1 flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+
+            {/* Help Information */}
+            <div className="bg-gray-50 p-4 rounded-md">
+              <div className="flex">
+                <AlertTriangle className="w-5 h-5 text-amber-400 mr-2 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-gray-600">
+                  <p className="font-medium text-gray-800 mb-1">API Token Requirements:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• Permissions: Zone:Zone:Read, Zone:DNS:Edit</li>
+                    <li>• Include your domains in the zone resources</li>
+                    <li>• Copy the token immediately after creation</li>
+                  </ul>
                 </div>
               </div>
-              
-              {cloudflareStatus && !cloudflareStatus.success && (
-                <p className="mt-2 text-sm text-red-600">{cloudflareStatus.error}</p>
-              )}
-              
-              {cloudflareStatus?.success && cloudflareStatus.zones && (
-                <p className="mt-2 text-sm text-gray-500">
-                  {cloudflareStatus.zones} zones available
-                </p>
-              )}
             </div>
-
-            <div className="pt-4 border-t">
-              <h4 className="text-sm font-medium text-gray-900 mb-2">Configuration Instructions</h4>
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>1. Create a <code className="bg-gray-100 px-1 rounded">.env</code> file in the server directory</p>
-                <p>2. Copy the contents from <code className="bg-gray-100 px-1 rounded">.env.example</code></p>
-                <p>3. Add your Cloudflare API token and zone ID</p>
-                <p>4. Restart the server</p>
-              </div>
-            </div>
-
-            <button
-              onClick={checkCloudflareConnection}
-              className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
-            >
-              Test Connection
-            </button>
           </div>
         </div>
 

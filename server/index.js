@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const siteRoutes = require('./routes/sites');
 const cloudflareRoutes = require('./routes/cloudflare');
 const emailRoutes = require('./routes/email');
+const settingsRoutes = require('./routes/settings');
 const { connectDB } = require('./services/database');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sites', siteRoutes);
 app.use('/api/cloudflare', cloudflareRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));

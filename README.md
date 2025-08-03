@@ -39,19 +39,19 @@ A modern, comprehensive web-based control panel for Ubuntu servers featuring aut
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/ubuntu-web-panel.git
+git clone https://github.com/shusanto294/ubuntu-web-panel.git
 cd ubuntu-web-panel
 ```
 
 ### 2. Run the Setup Script
 ```bash
 chmod +x setup.sh
-./setup.sh
+bash setup.sh
 ```
 
 ### 3. Start the Panel
 ```bash
-./start.sh
+bash start.sh
 ```
 
 That's it! 🎉
@@ -278,7 +278,7 @@ npm run client       # Frontend only
 
 ### Production
 ```bash
-./start.sh           # Start production server
+bash start.sh        # Start production server
 npm start            # Direct start (no checks)
 npm run build        # Build client only
 ```
@@ -515,7 +515,7 @@ cd client && npm install && cd ..
 cd client && npm run build && cd ..
 
 # Restart
-./start.sh
+bash start.sh
 ```
 
 ### Database Backup
@@ -534,7 +534,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 ### Development Setup
 ```bash
 # Fork and clone
-git clone https://github.com/yourusername/ubuntu-web-panel.git
+git clone https://github.com/shusanto294/ubuntu-web-panel.git
 cd ubuntu-web-panel
 
 # Install dependencies
@@ -553,12 +553,12 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ### Getting Help
 1. 📖 Check this README
-2. 🔍 Search [GitHub Issues](https://github.com/yourusername/ubuntu-web-panel/issues)
-3. 🆕 Create a [New Issue](https://github.com/yourusername/ubuntu-web-panel/issues/new)
+2. 🔍 Search [GitHub Issues](https://github.com/shusanto294/ubuntu-web-panel/issues)
+3. 🆕 Create a [New Issue](https://github.com/shusanto294/ubuntu-web-panel/issues/new)
 
 ### Community
-- 💬 [Discussions](https://github.com/yourusername/ubuntu-web-panel/discussions)
-- 📧 Email: support@yourproject.com
+- 💬 [Discussions](https://github.com/shusanto294/ubuntu-web-panel/discussions)
+- 📧 Email: support@ubuntu-web-panel.com
 
 ---
 
@@ -568,6 +568,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Made with ❤️ for the Ubuntu community
 
-[🏠 Home](https://github.com/yourusername/ubuntu-web-panel) • [📚 Docs](https://docs.yourproject.com) • [🐛 Issues](https://github.com/yourusername/ubuntu-web-panel/issues) • [💬 Discussions](https://github.com/yourusername/ubuntu-web-panel/discussions)
+[🏠 Home](https://github.com/shusanto294/ubuntu-web-panel) • [📚 Docs](https://docs.ubuntu-web-panel.com) • [🐛 Issues](https://github.com/shusanto294/ubuntu-web-panel/issues) • [💬 Discussions](https://github.com/shusanto294/ubuntu-web-panel/discussions)
 
 </div>
