@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { GlobeAltIcon, CloudIcon, ServerIcon, CheckCircleIcon, MailIcon } from 'lucide-react';
+import { Globe, Cloud, Server, CheckCircle, Mail } from 'lucide-react';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -97,7 +97,7 @@ const Dashboard = () => {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <GlobeAltIcon className="h-8 w-8 text-gray-400" />
+                <Globe className="h-8 w-8 text-gray-400" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
@@ -117,7 +117,7 @@ const Dashboard = () => {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <CheckCircleIcon className="h-8 w-8 text-green-400" />
+                <CheckCircle className="h-8 w-8 text-green-400" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
@@ -137,7 +137,7 @@ const Dashboard = () => {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <CloudIcon className="h-8 w-8 text-orange-400" />
+                <Cloud className="h-8 w-8 text-orange-400" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
@@ -157,7 +157,7 @@ const Dashboard = () => {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <ServerIcon className="h-8 w-8 text-blue-400" />
+                <Server className="h-8 w-8 text-blue-400" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
@@ -177,7 +177,7 @@ const Dashboard = () => {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <MailIcon className="h-8 w-8 text-purple-400" />
+                <Mail className="h-8 w-8 text-purple-400" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
@@ -197,7 +197,7 @@ const Dashboard = () => {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <MailIcon className="h-8 w-8 text-indigo-400" />
+                <Mail className="h-8 w-8 text-indigo-400" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
