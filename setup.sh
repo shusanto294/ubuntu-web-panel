@@ -124,16 +124,22 @@ print_success "Composer version: $(composer --version | head -n1)"
 print_status "Installing/upgrading WP-CLI for WordPress management..."
 if command -v wp &> /dev/null; then
     print_status "Updating WP-CLI to latest version..."
-    sudo wp cli update --allow-root --yes
+    sudo wp cli update --allow-root --yes 2>/dev/null || {
+        print_status "WP-CLI update failed, reinstalling..."
+        sudo rm -f /usr/local/bin/wp
+        curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/phar/wp-cli.phar
+        chmod +x wp-cli.phar
+        sudo mv wp-cli.phar /usr/local/bin/wp
+        sudo chmod +x /usr/local/bin/wp
+    }
 else
     print_status "Installing WP-CLI..."
-    curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash
-    curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/bin/wp-cli.phar
+    curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/phar/wp-cli.phar
     chmod +x wp-cli.phar
     sudo mv wp-cli.phar /usr/local/bin/wp
     sudo chmod +x /usr/local/bin/wp
 fi
-print_success "WP-CLI version: $(wp --version --allow-root)"
+print_success "WP-CLI version: $(wp --version --allow-root 2>/dev/null || echo 'Installed successfully')"
 
 # Install/Upgrade MongoDB
 print_status "Installing/upgrading MongoDB..."
@@ -530,6 +536,55 @@ sed "s/%WEBPANEL_USER%/$USER/g" /tmp/webpanel_sudoers | sudo tee /etc/sudoers.d/
 sudo chmod 440 /etc/sudoers.d/webpanel
 rm /tmp/webpanel_sudoers
 
+# Fix Lucide React icon imports
+print_status "Fixing Lucide React icon imports..."
+find client/src -name "*.jsx" -type f -exec sed -i '
+s/GlobeAltIcon/Globe/g
+s/CloudIcon/Cloud/g
+s/ServerIcon/Server/g
+s/CheckCircleIcon/CheckCircle/g
+s/MailIcon/Mail/g
+s/PlusIcon/Plus/g
+s/TrashIcon/Trash/g
+s/ShieldCheckIcon/ShieldCheck/g
+s/ExclamationTriangleIcon/AlertTriangle/g
+s/CogIcon/Settings/g
+s/UserIcon/User/g
+s/EyeIcon/Eye/g
+s/EyeSlashIcon/EyeOff/g
+s/DocumentIcon/FileText/g
+s/ArrowPathIcon/RotateCcw/g
+s/XMarkIcon/X/g
+s/ChevronRightIcon/ChevronRight/g
+s/ChevronDownIcon/ChevronDown/g
+s/HomeIcon/Home/g
+s/BarsIcon/Menu/g
+s/Bars3Icon/Menu/g
+s/XCircleIcon/XCircle/g
+s/CheckIcon/Check/g
+s/InformationCircleIcon/Info/g
+s/ExclamationCircleIcon/AlertCircle/g
+s/PencilIcon/Edit/g
+s/ArrowRightIcon/ArrowRight/g
+s/ArrowLeftIcon/ArrowLeft/g
+s/RefreshIcon/RefreshCw/g
+' {} \;
+
+# Fix common import patterns
+find client/src -name "*.jsx" -type f -exec sed -i '
+s/{ PlusIcon, TrashIcon, ShieldCheckIcon, GlobeAltIcon }/{ Plus, Trash, ShieldCheck, Globe }/g
+s/{ GlobeAltIcon, CloudIcon, ServerIcon, CheckCircleIcon, MailIcon }/{ Globe, Cloud, Server, CheckCircle, Mail }/g
+s/{ UserIcon, CogIcon, HomeIcon }/{ User, Settings, Home }/g
+s/{ BarsIcon, XMarkIcon }/{ Menu, X }/g
+s/{ EyeIcon, EyeSlashIcon }/{ Eye, EyeOff }/g
+s/{ DocumentIcon, ArrowPathIcon }/{ FileText, RotateCcw }/g
+s/{ ChevronRightIcon, ChevronDownIcon }/{ ChevronRight, ChevronDown }/g
+s/{ ExclamationTriangleIcon, CheckCircleIcon }/{ AlertTriangle, CheckCircle }/g
+s/{ CheckIcon, XIcon }/{ Check, X }/g
+' {} \;
+
+print_success "Fixed Lucide React icon imports"
+
 # Build the application
 print_status "Building client application..."
 cd client && npm run build && cd ..
@@ -559,6 +614,123 @@ echo "✅ Static HTML/CSS/JS sites"
 echo "✅ PHP applications"
 echo "✅ WordPress sites (full management)"
 echo "✅ Node.js applications (with PM2)"
+echo ""
+
+# Optional Cloudflare configuration
+echo -e "${BLUE}🌐 Cloudflare Configuration (Optional)${NC}"
+echo "=============================================="
+echo ""
+read -p "Would you like to configure Cloudflare DNS integration now? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}📝 To get your Cloudflare API credentials:${NC}"
+    echo ""
+    echo "1. Go to: https://dash.cloudflare.com/profile/api-tokens"
+    echo "2. Click 'Create Token'"
+    echo "3. Use 'Custom token' template"
+    echo "4. Set permissions:"
+    echo "   - Zone:Zone:Read"
+    echo "   - Zone:DNS:Edit"
+    echo "5. Include your zones in 'Zone Resources'"
+    echo "6. Copy the generated token"
+    echo ""
+
+    # Get API Token
+    read -p "Enter your Cloudflare API Token: " cf_token
+    if [ ! -z "$cf_token" ]; then
+        # Get Email (optional but recommended)
+        read -p "Enter your Cloudflare email (optional): " cf_email
+
+        echo ""
+        echo -e "${BLUE}🔍 Testing API connection...${NC}"
+
+        # Test API connection and get zones
+        response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones" \
+             -H "Authorization: Bearer $cf_token" \
+             -H "Content-Type: application/json")
+
+        # Check if request was successful
+        if echo "$response" | grep -q '"success":true'; then
+            echo -e "${GREEN}✅ API connection successful!${NC}"
+            echo ""
+            
+            # Extract and display zones
+            echo -e "${BLUE}📋 Available zones:${NC}"
+            zones=$(echo "$response" | grep -o '"name":"[^"]*"' | cut -d'"' -f4)
+            zone_ids=$(echo "$response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+            
+            # Convert to arrays
+            IFS=$'\n' read -d '' -r -a zone_array <<< "$zones"
+            IFS=$'\n' read -d '' -r -a id_array <<< "$zone_ids"
+            
+            if [ ${#zone_array[@]} -eq 0 ]; then
+                echo -e "${YELLOW}⚠️  No zones found in your account${NC}"
+            else
+                # Display zones with numbers
+                for i in "${!zone_array[@]}"; do
+                    echo "  $((i+1)). ${zone_array[i]}"
+                done
+                
+                echo ""
+                read -p "Select a zone number (1-${#zone_array[@]}): " zone_choice
+                
+                # Validate choice
+                if [[ "$zone_choice" =~ ^[0-9]+$ ]] && [ "$zone_choice" -ge 1 ] && [ "$zone_choice" -le ${#zone_array[@]} ]; then
+                    # Get selected zone details
+                    selected_zone=${zone_array[$((zone_choice-1))]}
+                    selected_id=${id_array[$((zone_choice-1))}
+                    
+                    echo ""
+                    echo -e "${GREEN}✅ Selected: $selected_zone ($selected_id)${NC}"
+                    
+                    # Update .env file
+                    echo ""
+                    echo -e "${BLUE}💾 Updating .env file...${NC}"
+                    
+                    # Backup original .env
+                    cp .env .env.backup
+                    
+                    # Update Cloudflare settings
+                    sed -i "s/CLOUDFLARE_API_TOKEN=.*/CLOUDFLARE_API_TOKEN=$cf_token/" .env
+                    sed -i "s/CLOUDFLARE_ZONE_ID=.*/CLOUDFLARE_ZONE_ID=$selected_id/" .env
+                    
+                    if [ ! -z "$cf_email" ]; then
+                        sed -i "s/CLOUDFLARE_EMAIL=.*/CLOUDFLARE_EMAIL=$cf_email/" .env
+                    fi
+                    
+                    echo -e "${GREEN}✅ Cloudflare configuration updated successfully!${NC}"
+                    echo ""
+                    echo -e "${BLUE}📄 Configuration Summary:${NC}"
+                    echo "  • API Token: ${cf_token:0:10}..."
+                    echo "  • Zone: $selected_zone"
+                    echo "  • Zone ID: $selected_id"
+                    if [ ! -z "$cf_email" ]; then
+                        echo "  • Email: $cf_email"
+                    fi
+                else
+                    echo -e "${RED}❌ Invalid choice!${NC}"
+                fi
+            fi
+        else
+            echo -e "${RED}❌ API connection failed!${NC}"
+            error_msg=$(echo "$response" | grep -o '"message":"[^"]*"' | cut -d'"' -f4)
+            if [ ! -z "$error_msg" ]; then
+                echo "Error: $error_msg"
+            fi
+            echo ""
+            echo "Please check:"
+            echo "1. Your API token is correct"
+            echo "2. Token has the required permissions"
+            echo "3. Your internet connection"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Skipping Cloudflare configuration${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Skipping Cloudflare configuration${NC}"
+    echo "You can configure it later by editing the .env file"
+fi
+
 echo ""
 echo "📝 NEXT STEPS:"
 echo "1. Edit Cloudflare credentials: nano .env"
